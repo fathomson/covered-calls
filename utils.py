@@ -4,8 +4,6 @@ import requests
 import pandas as pd
 from bs4 import BeautifulSoup
 
-from stqdm import stqdm
-
 def get_derivatives(url, out_fp='data/derivatives.csv'):
     """
     :param url: The url containing all derivatives contracts
