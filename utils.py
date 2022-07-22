@@ -18,6 +18,11 @@ def get_derivatives(url, out_fp='data/derivatives.csv'):
             file.write(page.text)
     return pd.read_csv(out_fp, skiprows=1, sep=';', header=0)
 
+def week_or_month(x):
+    if 'Week' in x:
+        return 'Week'
+    else:
+        return 'Month'
 
 def filter_derivatives(df):
     """
@@ -27,7 +32,6 @@ def filter_derivatives(df):
     df.drop(df.index[df['Location'] != 'Amsterdam'], inplace=True)
     df.drop(df.index[df['Product family'] != 'Stock options'], inplace=True)
     df = df[~df['Instrument name'].str.contains('OLD', na=False)]
-    df = df[~df['Instrument name'].str.contains('Week', na=False)].reset_index(drop=True)
     return df
 
 def parse_stock_option(json_data, stock):
@@ -58,6 +62,7 @@ def parse_stock_option(json_data, stock):
     df['name'] = stock['Instrument name']
     df['code'] = stock['Code']
     df['matures'] = json_data['extended'][0]['maturityDate']
+    df.loc[:, 'period'] = df['name'].apply(week_or_month)
 
     # determine share price,
     df.reset_index(inplace=True, drop=True)
@@ -71,7 +76,7 @@ def parse_stock_option(json_data, stock):
     # 1 option is for 100 stocks
     df['invested'] = df['invested'] * 100
 
-    return df[['name','code','matures','strike','best_bid','best_ask', 'invested','interest']]
+    return df[['name','code','matures','period','strike','best_bid','best_ask', 'invested','interest']]
 
 def get_stock_options(stock, use_existing=False):
     """
@@ -87,7 +92,7 @@ def get_stock_options(stock, use_existing=False):
         with open(out_fp) as fp:
             page = json.load(fp)
     else:
-        url = 'https://live.euronext.com/nl/ajax/getPricesOptionsAjax/stock-options/{}/DAMS'.format(stock['Code'])
+        url = 'https://live.euronext.com/en/ajax/getPricesOptionsAjax/stock-options/{}/DAMS'.format(stock['Code'])
         page = requests.post(url).json()
         with open(out_fp, 'w') as file:
             file.write(json.dumps(page))
@@ -106,7 +111,10 @@ def queue_handler(q, n,data, text):
     while q.qsize() > 0:
         row = q.get()
         result = get_stock_options(row)
-        data.add(result)
+        if result is not None:
+            data.add(result)
+        # else:
+        #     print(row)
         text.set_status('Refreshing {} option prices  ({}/{} | {:.0%})'.format(row['Instrument name'], n - q.qsize(), n,1 - (q.qsize()/n) ))
         q.task_done()
     text.set_status('')
