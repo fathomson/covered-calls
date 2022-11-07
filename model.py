@@ -7,8 +7,7 @@ class Data:
 
 
     def add(self, _df):
-        self.df = pd.concat([self.df, _df])
-        self.df .sort_values(by=['interest'], inplace=True, ignore_index=True, ascending=False)
+        self.df = pd.concat([self.df, _df], ignore_index=True)
 
 
 class Text:

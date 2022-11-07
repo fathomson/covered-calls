@@ -36,7 +36,11 @@ def filter_derivatives(df):
 
 def get_latest_price(stock):
     url = 'https://live.euronext.com/intraday_chart/getChartData/{}-XAMS/intraday'.format(stock['Underlying ISIN'])
-    return requests.post(url).json()[-1]['price']
+    try:
+        return requests.post(url).json()[-1]['price']
+    except:
+        return
+
 
 def parse_stock_option(json_data, stock):
     """
@@ -60,21 +64,20 @@ def parse_stock_option(json_data, stock):
     df_p = pd.DataFrame(json_data['extended'][0]['rowp'])
     df_p['option'] = 'put'
 
-    df = pd.concat([df_c, df_p])
+    df = pd.concat([df_c, df_p], ignore_index=True)
 
     df['strike'] = df[['strike']].applymap(lambda text: BeautifulSoup(text, 'html.parser').get_text())
     df.drop(df.index[df['best_bid'] == '-'], inplace=True)
 
     if len(df)<1:
-        return None
+        return
 
     cols = ['strike', 'best_bid', 'best_ask']
     df[cols] = df[cols].apply(pd.to_numeric, errors='coerce', axis=1)
 
-    try:
-        stock_price = get_latest_price(stock)
-    except:
-        stock_price = round(df['strike'][0] + (df['best_bid'][0] + df['best_ask'][0]) / 2, 2)
+    stock_price = get_latest_price(stock)
+    if not stock_price:
+        return
 
     df['name'] = stock['Instrument name']
     df['name_short'] = '{} ({})'.format(stock['Instrument name'].split(' ')[0], stock['Code'])
@@ -87,17 +90,13 @@ def parse_stock_option(json_data, stock):
     df.reset_index(inplace=True, drop=True)
 
     # CALL
-    df['profit'] = df.apply(lambda x: (x['strike']+x['best_bid'] - stock_price) if x['strike'] < stock_price else (x['best_bid']), axis=1)
-    df['invested'] = df.apply( lambda x: (stock_price - x['best_bid']) , axis=1)
-    df['interest'] = df['profit']/df['invested']
-
+    df['tv_call'] = df.apply(lambda x: x['best_bid'] if (stock_price < x['strike']) else (x['best_bid'] - (stock_price - x['strike'])) , axis=1)
+    df['tvspc'] = df.apply(lambda x: x['tv_call']/stock_price, axis=1)
     #PUT
-    df['risk_reward'] = df.apply(lambda x: ((x['strike']- stock_price) / x['best_bid'] ), axis=1)
+    df['tv_put'] = df.apply(lambda x: x['best_bid'] if (stock_price > x['strike']) else (x['best_bid'] - (x['strike'] - stock_price))  , axis=1)
+    df['tvspp'] = df.apply(lambda x: x['tv_put']/stock_price, axis=1)
 
-    # 1 option is for 100 stocks
-    df['invested'] = df['invested'] * 100
-
-    return df[['name_short','matures','period','latest_price', 'strike','best_bid','best_ask', 'invested','interest', 'option','risk_reward']]
+    return df[['name_short','matures','period','latest_price', 'strike','best_bid','best_ask','option', 'tvspc', 'tvspp']]
 
 def get_stock_options(stock, use_existing=False):
     """
@@ -131,7 +130,7 @@ def get_df():
 def queue_handler(q, n, data, text):
     while q.qsize() > 0:
         row = q.get()
-        result = get_stock_options(row)
+        result = get_stock_options(row, use_existing=True)
         if result is not None:
             data.add(result)
         else:
