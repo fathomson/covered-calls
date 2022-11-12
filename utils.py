@@ -130,7 +130,7 @@ def get_df():
 def queue_handler(q, n, data, text):
     while q.qsize() > 0:
         row = q.get()
-        result = get_stock_options(row, use_existing=True)
+        result = get_stock_options(row)
         if result is not None:
             data.add(result)
         else:
