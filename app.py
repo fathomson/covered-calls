@@ -55,11 +55,11 @@ def update_views():
         call_data_filtered = st.session_state.data.df[(st.session_state.data.df['option']=='call') & (st.session_state.data.df.period.isin(filter_option_period))]
         put_data_filtered = st.session_state.data.df[(st.session_state.data.df['option']=='put') & (st.session_state.data.df.period.isin(filter_option_period))]
 
-    call_data_filtered.drop(columns=['option', 'tvspp'], inplace=True)
-    put_data_filtered.drop(columns=['option', 'tvspc'], inplace=True)
+    call_data_filtered.drop(columns=['option', 'tvspp','tvspp_d'], inplace=True)
+    put_data_filtered.drop(columns=['option', 'tvspc', 'tvspc_d'], inplace=True)
 
-    call_df.dataframe(data=call_data_filtered.style.format({'latest_price':'€{:.2f}','strike':'€{:.2f}','best_bid':'€{:.2f}','best_ask':'€{:.2f}','tvspc':'{:.2%}'}))
-    put_df.dataframe(data=put_data_filtered.style.format({'latest_price':'€{:.2f}','strike':'€{:.2f}','best_bid':'€{:.2f}','best_ask':'€{:.2f}','tvspp':'{:.2%}'}))
+    call_df.dataframe(data=call_data_filtered.style.format({'latest_price':'€{:.2f}','strike':'€{:.2f}','best_bid':'€{:.2f}','best_ask':'€{:.2f}','tvspc':'{:.2%}','tvspc_d':'{:.2%}'}))
+    put_df.dataframe(data=put_data_filtered.style.format({'latest_price':'€{:.2f}','strike':'€{:.2f}','best_bid':'€{:.2f}','best_ask':'€{:.2f}','tvspp':'{:.2%}','tvspp_d':'{:.2%}'}))
 
 def update_data():
     df = get_df()
