@@ -19,6 +19,8 @@ def get_derivatives(url, out_fp='data/derivatives.csv'):
         os.makedirs(os.path.dirname(out_fp))
     if not os.path.isfile(out_fp):
         page = requests.get(url)
+        if not page.status_code == 200:
+            return None
         with open(out_fp, 'w', encoding="utf-8") as file:
             file.write(page.text)
     return pd.read_csv(out_fp, skiprows=1, sep=';', header=0)
@@ -49,6 +51,18 @@ def get_latest_price(stock):
         return requests.post(url).json()[-1]['price']
     except:
         return
+
+def get_last_price(stock):
+    url = 'https://live.euronext.com/en/ajax/getUnderlying/{}/DAMS/options'.format(stock['Code'])
+    try:
+        page = requests.get(url)
+        if page.status_code != 200:
+            return None
+        soup = BeautifulSoup(page.content, 'html.parser')
+        html_table = soup.find_all(class_='data-13')
+        return float(html_table[7].text.lstrip().rstrip())
+    except Exception as e:
+        return None
 
 def get_days_until_mature(mature_date):
     # Create a calendar
@@ -87,7 +101,7 @@ def parse_stock_option(json_data, stock):
 
     df = pd.concat([df_c, df_p], ignore_index=True)
 
-    df['strike'] = df[['strike']].applymap(lambda text: BeautifulSoup(text, 'html.parser').get_text())
+    df['strike'] = df[['strike']].map(lambda text: BeautifulSoup(text, 'html.parser').get_text())
     df.drop(df.index[df['best_bid'] == '-'], inplace=True)
 
     if len(df)<1:
@@ -96,7 +110,7 @@ def parse_stock_option(json_data, stock):
     cols = ['strike', 'best_bid', 'best_ask']
     df[cols] = df[cols].apply(pd.to_numeric, errors='coerce', axis=1)
 
-    stock_price = get_latest_price(stock)
+    stock_price = get_last_price(stock)
     if not stock_price:
         return
 
@@ -147,6 +161,7 @@ def get_stock_options(stock, use_existing=False):
     out_fp = 'data/{}.json'.format(stock['Code'])
     if not os.path.exists(os.path.dirname(out_fp)):
         os.makedirs(os.path.dirname(out_fp))
+
     if use_existing and os.path.isfile(out_fp):
         with open(out_fp) as fp:
             page = json.load(fp)
